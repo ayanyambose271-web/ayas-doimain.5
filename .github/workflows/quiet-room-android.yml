@@ -27,7 +27,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
+      - name: Check Android SDK on runner
+        run: |
+          test -n "$ANDROID_HOME"
+          ls "$ANDROID_HOME/platforms" || true
       - name: Unpack Quiet Room source
         shell: bash
         run: |
