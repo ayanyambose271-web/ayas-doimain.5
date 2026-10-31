@@ -1,0 +1,57 @@
+name: Quiet Room — build installable Android APK
+on:
+  push:
+    paths:
+      - 'quiet-room/**'
+      - '.github/workflows/quiet-room-android.yml'
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: 'HTTPS Quiet Room API backend origin'
+        required: true
+        default: 'https://quiet-room-mobile.vercel.app'
+        type: string
+permissions:
+  contents: read
+jobs:
+  android:
+    name: Assemble Android test APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Unpack Quiet Room source
+        shell: bash
+        run: |
+          mkdir -p build
+          base64 -d quiet-room/build-source.tar.xz.base64 | tar -xJf - -C build
+          test -f build/mobile/package.json
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: build/mobile
+      - name: Package app and native Android protections
+        env:
+          API_BASE: ${{ github.event.inputs.api_base || 'https://quiet-room-mobile.vercel.app' }}
+        run: |
+          node scripts/prepare-mobile.mjs "$API_BASE"
+          npx cap add android
+          npm run apply:native
+          npx cap sync android
+        working-directory: build/mobile
+      - name: Compile and test Android APK
+        run: ./gradlew --no-daemon assembleDebug
+        working-directory: build/mobile/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quiet-room-android-apk
+          path: build/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+          if-no-files-found: error
